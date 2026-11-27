@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowDown, Check, X } from 'lucide-react';
 
 interface OverlayHUDProps {
-  progress: number;
+  subscribeProgress: (listener: (progress: number) => void) => () => void;
   onJumpTo: (fraction: number) => void;
 }
 
@@ -11,12 +11,18 @@ function smoothstep(x: number, min: number, max: number) {
   return t * t * (3 - 2 * t);
 }
 
-export function OverlayHUD({ progress, onJumpTo }: OverlayHUDProps) {
+export function OverlayHUD({ subscribeProgress, onJumpTo }: OverlayHUDProps) {
+  const [progress, setProgress] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState<'roast' | 'machine' | null>(null);
   const [email, setEmail] = useState('');
   const [roastChoice, setRoastChoice] = useState('Ethiopia Yirgacheffe · Whole Bean');
   const [submitted, setSubmitted] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [stage5Minimized, setStage5Minimized] = useState(false);
+
+  useEffect(() => {
+    return subscribeProgress(setProgress);
+  }, [subscribeProgress]);
 
   const isDarkStage = progress >= 0.18 && progress <= 0.76;
 
@@ -86,7 +92,7 @@ export function OverlayHUD({ progress, onJumpTo }: OverlayHUDProps) {
             </button>
             <button
               type="button"
-              onClick={() => onJumpTo(0.95)}
+              onClick={() => onJumpTo(0.93)}
               className="hover:underline underline-offset-4 decoration-[#C87A4B] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               Pour
@@ -178,59 +184,78 @@ export function OverlayHUD({ progress, onJumpTo }: OverlayHUDProps) {
         </div>
       )}
 
-      {/* Stage 5 (85% - 100%): Final Brand Reveal, Tasting Notes & CTA */}
+      {/* Stage 5 (85% - 100%): Compact Bottom-Left Brand Reveal — Keeps Cup & Pour Unobstructed */}
       {stage5Opacity > 0.02 && (
         <div
-          className="pointer-events-none fixed inset-0 z-20 flex items-end md:items-center"
+          className="pointer-events-none fixed inset-0 z-20 flex items-end justify-start"
           style={{ opacity: stage5Opacity }}
         >
-          <div className="mx-auto w-full max-w-[1440px] px-6 pb-16 md:px-12 md:pb-0">
-            <div className="pointer-events-auto max-w-md space-y-5 rounded-lg border border-[#DDD5C7] bg-[#F4F1EA]/95 p-7 shadow-xl">
-              <div className="space-y-2">
-                <p className="text-xs font-semibold tracking-wider text-[#9F5F37]">
-                  Valenza Roastery · Corsa 01
-                </p>
-                <h2
-                  className="font-display text-4xl font-semibold leading-[1.06] tracking-tight text-[#1A1816]"
-                  style={{ textWrap: 'balance' }}
-                >
-                  Velvety Crema, Pure Origin.
-                </h2>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-[#61584E]">
-                <span>Dark Cocoa</span>
-                <span aria-hidden="true">·</span>
-                <span>Roasted Hazelnut</span>
-                <span aria-hidden="true">·</span>
-                <span>Molasses</span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono-tabular text-[#1A1816]">93.0 °C / 9.0 bar</span>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 pt-1">
+          <div className="w-full max-w-[1440px] px-5 pb-5 md:px-10 md:pb-8">
+            {stage5Minimized ? (
+              <button
+                type="button"
+                onClick={() => setStage5Minimized(false)}
+                className="pointer-events-auto rounded-md border border-[#DDD5C7] bg-[#F4F1EA]/95 px-4 py-2 text-xs font-semibold text-[#1A1816] shadow-md hover:border-[#9F5F37] hover:text-[#9F5F37] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                Show Tasting Notes
+              </button>
+            ) : (
+              <div className="pointer-events-auto relative max-w-[320px] space-y-3.5 rounded-lg border border-[#DDD5C7] bg-[#F4F1EA]/95 p-5 shadow-lg">
                 <button
                   type="button"
-                  onClick={() => {
-                    setSubmitted(false);
-                    setDrawerOpen('roast');
-                  }}
-                  className="rounded-md bg-[#1A1816] px-5 py-2.5 text-xs font-semibold tracking-wide text-[#F4F1EA] transition-colors hover:bg-[#332E29] whitespace-nowrap shrink-0 cursor-pointer"
+                  aria-label="Hide tasting notes card"
+                  onClick={() => setStage5Minimized(true)}
+                  className="absolute right-3 top-3 rounded p-1 text-[#6E655B] hover:text-[#1A1816] transition-colors cursor-pointer"
                 >
-                  Order Roast
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSubmitted(false);
-                    setDrawerOpen('machine');
-                  }}
-                  className="rounded-md border border-[#C6BEB1] bg-transparent px-5 py-2.5 text-xs font-semibold tracking-wide text-[#1A1816] transition-colors hover:border-[#9F5F37] hover:text-[#9F5F37] whitespace-nowrap shrink-0 cursor-pointer"
-                >
-                  Explore Machine
-                </button>
+
+                <div className="space-y-1.5 pr-6">
+                  <p className="text-[11px] font-semibold tracking-wider text-[#9F5F37]">
+                    Valenza Roastery · Corsa 01
+                  </p>
+                  <h2
+                    className="font-display text-2xl font-semibold leading-[1.08] tracking-tight text-[#1A1816] sm:text-3xl"
+                    style={{ textWrap: 'balance' }}
+                  >
+                    Velvety Crema, Pure Origin.
+                  </h2>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-medium text-[#61584E]">
+                  <span>Dark Cocoa</span>
+                  <span aria-hidden="true">·</span>
+                  <span>Roasted Hazelnut</span>
+                  <span aria-hidden="true">·</span>
+                  <span>Molasses</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-mono-tabular text-[#1A1816]">93.0 °C / 9.0 bar</span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubmitted(false);
+                      setDrawerOpen('roast');
+                    }}
+                    className="rounded-md bg-[#1A1816] px-4 py-2 text-xs font-semibold tracking-wide text-[#F4F1EA] transition-colors hover:bg-[#332E29] whitespace-nowrap shrink-0 cursor-pointer"
+                  >
+                    Order Roast
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubmitted(false);
+                      setDrawerOpen('machine');
+                    }}
+                    className="rounded-md border border-[#C6BEB1] bg-transparent px-4 py-2 text-xs font-semibold tracking-wide text-[#1A1816] transition-colors hover:border-[#9F5F37] hover:text-[#9F5F37] whitespace-nowrap shrink-0 cursor-pointer"
+                  >
+                    Explore Machine
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

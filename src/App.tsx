@@ -5,7 +5,7 @@ import { useScrollRig } from './hooks/useScrollRig';
 
 export default function App() {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const { scrollStateRef, progress, scrollToProgress } = useScrollRig(scrollContainerRef);
+  const { scrollStateRef, subscribeProgress, scrollToProgress } = useScrollRig(scrollContainerRef);
 
   return (
     <main className="relative w-full bg-[#F4F1EA]">
@@ -17,7 +17,7 @@ export default function App() {
         </div>
       </div>
 
-      <OverlayHUD progress={progress} onJumpTo={scrollToProgress} />
+      <OverlayHUD subscribeProgress={subscribeProgress} onJumpTo={scrollToProgress} />
     </main>
   );
 }

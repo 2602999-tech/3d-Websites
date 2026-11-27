@@ -5,56 +5,116 @@ export function createEspressoStreamMaterial(): THREE.ShaderMaterial {
     uniforms: {
       uTime: { value: 0 },
       uOpacity: { value: 1 },
-      uDeepColor: { value: new THREE.Color(0x281006) },
-      uAmberColor: { value: new THREE.Color(0x9f4f1c) },
-      uCremaHighlight: { value: new THREE.Color(0xe7ac68) },
+      uLength: { value: 0.9 },
+      uThickness: { value: 1.0 },
+      uPhaseOffset: { value: 0.0 },
+      uDeepColor: { value: new THREE.Color(0x200902) },
+      uAmberColor: { value: new THREE.Color(0x9a4917) },
+      uCremaHighlight: { value: new THREE.Color(0xf0b872) },
+      uSpecularColor: { value: new THREE.Color(0xfff4e2) },
     },
     vertexShader: /* glsl */ `
-      varying vec2 vUv;
+      varying float vPathT;
       varying vec3 vNormalView;
       varying vec3 vViewPos;
+      varying float vFlowPulse;
+
       uniform float uTime;
+      uniform float uLength;
+      uniform float uThickness;
+      uniform float uPhaseOffset;
 
       void main() {
-        vUv = uv;
+        // Extrude path runs vertically downward from y = 0 (spout outlet) to y = -1 (cup surface)
+        float t = clamp(-position.y, 0.0, 1.0);
+        vPathT = t;
+
+        // Viscous fluid profile: clinging meniscus at spout, gravity-accelerated waist, subtle splash flare
+        float spoutMeniscus = exp(-t * 14.0) * 0.24;
+        float gravityNeck = mix(1.04, 0.68, smoothstep(0.0, 0.68, t));
+        float impactBead = exp(-(1.0 - t) * 18.0) * 0.18;
+
+        // Rayleigh-Plateau surface tension pulsing traveling down the trail
+        float travelingWave = sin(t * 15.0 - uTime * 9.5 + uPhaseOffset);
+        float envelope = sin(t * 3.14159265);
+        float radiusFactor = uThickness * (gravityNeck + spoutMeniscus + impactBead + travelingWave * 0.14 * envelope);
+
         vec3 pos = position;
-        float ripple = sin(uv.y * 26.0 - uTime * 14.0) * 0.0022;
-        pos.x += normal.x * ripple;
-        pos.z += normal.z * ripple;
+        pos.xz *= radiusFactor;
+        pos.y = -t * uLength;
+
+        // Subtle viscous serpentine ribbon sway — strictly zero at t = 0 so it stays pinned to the spout outlet
+        float swayAmp = 0.0055 * envelope * uThickness;
+        pos.x += sin(t * 9.5 - uTime * 7.2 + uPhaseOffset) * swayAmp;
+        pos.z += cos(t * 8.0 - uTime * 6.4 + uPhaseOffset * 1.3) * swayAmp * 0.85;
+
+        vFlowPulse = travelingWave * 0.5 + 0.5;
+
+        // Perturb low-poly facet normal gently along traveling viscous ripple for liquid specular shimmer
+        vec3 n = normal;
+        n.y += cos(t * 15.0 - uTime * 9.5 + uPhaseOffset) * 0.16 * envelope;
+        n = normalize(n);
 
         vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
         vViewPos = -mvPosition.xyz;
-        vNormalView = normalize(normalMatrix * normal);
+        vNormalView = normalize(normalMatrix * n);
         gl_Position = projectionMatrix * mvPosition;
       }
     `,
     fragmentShader: /* glsl */ `
       uniform float uTime;
       uniform float uOpacity;
+      uniform float uPhaseOffset;
       uniform vec3 uDeepColor;
       uniform vec3 uAmberColor;
       uniform vec3 uCremaHighlight;
+      uniform vec3 uSpecularColor;
 
-      varying vec2 vUv;
+      varying float vPathT;
       varying vec3 vNormalView;
       varying vec3 vViewPos;
+      varying float vFlowPulse;
 
       void main() {
-        vec3 viewDir = normalize(vViewPos);
-        vec3 norm = normalize(vNormalView);
-        float fresnel = pow(1.0 - abs(dot(norm, viewDir)), 2.0);
+        vec3 V = normalize(vViewPos);
+        vec3 N = normalize(vNormalView);
+        if (!gl_FrontFacing) N = -N;
 
-        float flowBand = sin(vUv.y * 22.0 - uTime * 11.0) * 0.5 + 0.5;
-        float cremaStripe = smoothstep(0.45, 0.95, flowBand);
+        // Studio key, overhead softbox, and warm back-rim light directions in view space
+        vec3 L1 = normalize((viewMatrix * vec4(4.5, 8.0, 5.2, 0.0)).xyz);
+        vec3 L2 = normalize((viewMatrix * vec4(-3.8, 4.5, -2.8, 0.0)).xyz);
+        vec3 L3 = normalize((viewMatrix * vec4(0.0, 5.5, 3.0, 0.0)).xyz);
 
-        // Warm amber subsurface scatter along thin stream edges + dark espresso core
-        vec3 col = mix(uDeepColor, uAmberColor, fresnel * 0.78 + cremaStripe * 0.25);
-        col = mix(col, uCremaHighlight, pow(fresnel, 2.5) * 0.65 + cremaStripe * 0.18);
+        vec3 H1 = normalize(L1 + V);
+        vec3 H2 = normalize(L2 + V);
+        vec3 H3 = normalize(L3 + V);
 
-        gl_FragColor = vec4(col, uOpacity);
+        float ndv = max(dot(N, V), 0.0);
+        float fresnel = pow(1.0 - ndv, 3.0);
+
+        // Rich viscous espresso base with subsurface amber & flowing crema micro-streaks
+        float flowBand = sin(vPathT * 24.0 - uTime * 11.5 + uPhaseOffset) * 0.5 + 0.5;
+        float cremaRibbon = smoothstep(0.42, 0.96, flowBand * 0.65 + vFlowPulse * 0.35);
+
+        vec3 baseCol = mix(uDeepColor, uAmberColor, fresnel * 0.72 + cremaRibbon * 0.28);
+        baseCol = mix(baseCol, uCremaHighlight, pow(fresnel, 2.2) * 0.48 + cremaRibbon * 0.16);
+
+        // Dual-lobe high-gloss specular reflections (wet liquid clearcoat + tight pinpoint glint)
+        float specTight1 = pow(max(dot(N, H1), 0.0), 180.0) * 2.4;
+        float specBroad1 = pow(max(dot(N, H1), 0.0), 34.0) * 0.52;
+        float specRim2 = pow(max(dot(N, H2), 0.0), 96.0) * 1.15;
+        float specSoft3 = pow(max(dot(N, H3), 0.0), 64.0) * 0.75;
+
+        float totalSpec = specTight1 + specBroad1 + specRim2 + specSoft3;
+        vec3 glossEnv = mix(uAmberColor, uSpecularColor, 0.75) * fresnel * 0.65;
+
+        vec3 finalCol = baseCol + glossEnv + uSpecularColor * totalSpec;
+        float alpha = clamp(uOpacity * (0.94 + fresnel * 0.06), 0.0, 1.0);
+        gl_FragColor = vec4(finalCol, alpha);
       }
     `,
     transparent: true,
+    depthWrite: true,
   });
 }
 
