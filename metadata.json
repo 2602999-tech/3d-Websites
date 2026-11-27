@@ -1,0 +1,6 @@
+{
+  "name": "Valenza Corsa 01 — 3D Espresso Architecture",
+  "description": "An interactive 3D journey through the Valenza Corsa 01 espresso machine, from bean hopper entry and conical burr grinding to 9-bar thermal extraction and crema pour.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
