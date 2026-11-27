@@ -12,6 +12,7 @@ export interface ScrollState {
 export function useScrollRig(containerRef: React.RefObject<HTMLDivElement | null>) {
   const scrollStateRef = useRef<ScrollState>({ progress: 0 });
   const lenisRef = useRef<Lenis | null>(null);
+  const lastUiStepRef = useRef<number>(-1);
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
@@ -19,9 +20,10 @@ export function useScrollRig(containerRef: React.RefObject<HTMLDivElement | null
     if (!triggerEl) return;
 
     const lenis = new Lenis({
-      duration: 1.25,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      duration: 0.72,
+      easing: (t) => 1 - Math.pow(1 - t, 3),
       smoothWheel: true,
+      wheelMultiplier: 1.15,
     });
     lenisRef.current = lenis;
 
@@ -41,11 +43,17 @@ export function useScrollRig(containerRef: React.RefObject<HTMLDivElement | null
         trigger: triggerEl,
         start: 'top top',
         end: 'bottom bottom',
-        scrub: 1.2,
+        scrub: 0.35,
         onUpdate: (self) => {
           const val = Math.min(Math.max(self.progress, 0), 1);
           scrollStateRef.current.progress = val;
-          setProgress(val);
+
+          // Quantize UI updates to 0.5% steps to prevent 60fps React re-renders
+          const step = Math.round(val * 200);
+          if (step !== lastUiStepRef.current) {
+            lastUiStepRef.current = step;
+            setProgress(val);
+          }
         },
       },
     });
@@ -66,7 +74,7 @@ export function useScrollRig(containerRef: React.RefObject<HTMLDivElement | null
       const scrollable = Math.max(el.offsetHeight - window.innerHeight, 1);
       const targetY = el.offsetTop + Math.min(Math.max(targetFraction, 0), 1) * scrollable;
       if (lenisRef.current) {
-        lenisRef.current.scrollTo(targetY, { duration: 1.3 });
+        lenisRef.current.scrollTo(targetY, { duration: 0.9 });
       } else {
         window.scrollTo({ top: targetY, behavior: 'smooth' });
       }

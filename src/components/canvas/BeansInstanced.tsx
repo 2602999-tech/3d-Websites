@@ -185,11 +185,10 @@ export function BeansInstanced({ scrollStateRef }: BeansInstancedProps) {
 
     // Coffee grounds particle stream from bottom of conical burrs into portafilter basket
     if (groundsRef.current) {
-      for (let i = 0; i < GROUND_COUNT; i++) {
-        if (grindProgress < 0.02) {
-          _dummy.position.set(0, -10, 0);
-          _dummy.scale.setScalar(0.001);
-        } else {
+      const showGrounds = grindProgress >= 0.02;
+      groundsRef.current.visible = showGrounds;
+      if (showGrounds) {
+        for (let i = 0; i < GROUND_COUNT; i++) {
           const speed = 0.72 + rand(i) * 0.48;
           const u = (t * speed + i / GROUND_COUNT) % 1;
           const pt = chuteCurve.getPointAt(u);
@@ -204,11 +203,11 @@ export function BeansInstanced({ scrollStateRef }: BeansInstancedProps) {
             Math.sin(u * Math.PI) *
             Math.min(grindProgress * 2.2, 1);
           _dummy.scale.setScalar(Math.max(s, 0.001));
+          _dummy.updateMatrix();
+          groundsRef.current.setMatrixAt(i, _dummy.matrix);
         }
-        _dummy.updateMatrix();
-        groundsRef.current.setMatrixAt(i, _dummy.matrix);
+        groundsRef.current.instanceMatrix.needsUpdate = true;
       }
-      groundsRef.current.instanceMatrix.needsUpdate = true;
     }
   });
 

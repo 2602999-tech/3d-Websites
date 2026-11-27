@@ -46,22 +46,21 @@ export function LiquidStream({ scrollStateRef }: LiquidStreamProps) {
       (1 - THREE.MathUtils.smoothstep(p, 0.70, 0.76));
 
     if (dropletsRef.current) {
-      for (let i = 0; i < DROPLET_COUNT; i++) {
-        if (seepActive < 0.02) {
-          _dummy.position.set(0, -10, 0);
-          _dummy.scale.setScalar(0.001);
-        } else {
+      const showDroplets = seepActive >= 0.02;
+      dropletsRef.current.visible = showDroplets;
+      if (showDroplets) {
+        for (let i = 0; i < DROPLET_COUNT; i++) {
           const cycle = (t * (0.65 + (i % 4) * 0.14) + i / DROPLET_COUNT) % 1;
           const xOff = ((i % 5) - 2) * 0.045;
           const zOff = (Math.floor(i / 5) - 1.5) * 0.045;
           _dummy.position.set(xOff, 1.52 - cycle * 0.14, 0.82 + zOff);
           _dummy.scale.set(0.8, 1.3, 0.8);
           _dummy.scale.multiplyScalar(seepActive * Math.sin(cycle * Math.PI));
+          _dummy.updateMatrix();
+          dropletsRef.current.setMatrixAt(i, _dummy.matrix);
         }
-        _dummy.updateMatrix();
-        dropletsRef.current.setMatrixAt(i, _dummy.matrix);
+        dropletsRef.current.instanceMatrix.needsUpdate = true;
       }
-      dropletsRef.current.instanceMatrix.needsUpdate = true;
     }
 
     // Stage 5 (0.84 - 1.00): Final twin espresso pour & rising crema inside white mug
